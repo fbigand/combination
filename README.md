@@ -55,7 +55,7 @@ func main() {
     
     var comb combination.Combination // alias for []int
     hasNext := true
-    for {
+    for hasNext {
         comb = combIt.GetCombination()
 
         fmt.Println(comb)
