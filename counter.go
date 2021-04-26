@@ -20,9 +20,10 @@ import (
 //    7: 0 6
 //    8: 1 0 5
 type counter struct {
-	initialValue uint
-	state        []uint
-	endState     []uint
+	initialValue          uint
+	state                 []uint
+	endState              []uint
+	combinationUnsetIndex int
 }
 
 // counterCombsCache record counter combinations that has already been computed
@@ -35,12 +36,16 @@ func newCounter(initialValue uint, endState []uint) *counter {
 	c := counter{}
 
 	c.initialValue = initialValue
+	c.combinationUnsetIndex = int(initialValue) + 1
 
 	c.state = make([]uint, 2)
 	c.state[0] = initialValue
 
 	if util.MaxUint(endState...) > initialValue {
-		panic("newCounter: endstate cannot be reached with these parameters")
+		panic("newCounter: endState cannot be reached with these parameters")
+	}
+	if util.SumUint(endState...) != initialValue {
+		panic("newCounter: endState sum must be equal to initialValue")
 	}
 	c.endState = endState
 
@@ -60,10 +65,17 @@ func (c *counter) getStateToString() string {
 // Returns true if the operation was successful. Returns false
 // if reached the end state
 func (c *counter) next() bool {
+	hasNext := true
 	if util.EqualsSliceUint(c.state, c.endState) {
-		return false
+		hasNext = false
+	} else {
+		c.incrementState()
 	}
 
+	return hasNext
+}
+
+func (c *counter) incrementState() {
 	if c.state[0] == 0 {
 		iReset := 1
 		for c.state[iReset] == 0 {
@@ -73,7 +85,8 @@ func (c *counter) next() bool {
 
 		// prevent out of range
 		if iReset+1 == len(c.state) {
-			c.state = c.state[:len(c.state)+1]
+			c.state = append(c.state, 0)
+			// c.state = c.state[:len(c.state)+1]
 		}
 		c.state[iReset+1]++
 
@@ -82,8 +95,6 @@ func (c *counter) next() bool {
 		c.state[0]--
 		c.state[1]++
 	}
-
-	return true
 }
 
 func (c *counter) getCombinations() []Combination {
@@ -94,59 +105,72 @@ func (c *counter) getCombinations() []Combination {
 	if combsInCache {
 		combinations = cachedCombs
 	} else {
-		combinations = getCounterCombinations(c, len(c.state)-1)
+		combinations = c.computeCounterCombinations(len(c.state) - 1)
 		counterCombinationsCache[strState] = combinations
 	}
 	return combinations
 }
 
-func getCounterCombinations(c *counter, index int) []Combination {
-
-	binomialCombs := getBinomialCombinations(c.state[index], c.initialValue)
+func (c *counter) computeCounterCombinations(index int) []Combination {
 	combinations := make([]Combination, 0)
 
-	if index == 0 {
-		// recursive stop case
-		for _, binomialComb := range binomialCombs {
-			combination := make(Combination, c.initialValue)
-			// set default value (outside of c.state values)
-			util.InitSliceInt(combination, int(c.initialValue)+1)
-
-			for _, v := range binomialComb {
-				// set actual values
-				combination[v] = index
-			}
-			combinations = append(combinations, combination)
-		}
-	} else {
-		lowerIndexCombs := getCounterCombinations(c, index-1)
-		if c.state[index] == 0 {
-			// pass to upper index
-			combinations = lowerIndexCombs
+	if index != -1 {
+		lowerIndexCombs := c.computeCounterCombinations(index - 1)
+		if len(lowerIndexCombs) == 0 {
+			combinations = c.startCombinationsCreation(index)
 		} else {
-			for _, binomialComb := range binomialCombs {
-				for _, lowerIndexComb := range lowerIndexCombs {
-					// check if values in lowerIndexComb not already taken
-					anySpotTaken := false
+			combinations = c.updateLowerIndexCombinations(index, lowerIndexCombs)
+		}
+	}
+
+	return combinations
+}
+
+func (c *counter) startCombinationsCreation(index int) []Combination {
+	combinations := make([]Combination, 0)
+	binomialCombs := getBinomialCombinations(c.state[index], c.initialValue)
+	for _, binomialComb := range binomialCombs {
+		combination := make(Combination, c.initialValue)
+		util.InitSliceInt(combination, c.combinationUnsetIndex)
+
+		for _, v := range binomialComb {
+			combination[v] = index
+		}
+		combinations = append(combinations, combination)
+	}
+	return combinations
+}
+
+func (c *counter) updateLowerIndexCombinations(index int, lowerIndexCombs []Combination) []Combination {
+	var combinations []Combination
+	binomialCombs := getBinomialCombinations(c.state[index], c.initialValue)
+	if len(binomialCombs) == 0 {
+		combinations = lowerIndexCombs
+	} else {
+		combinations = make([]Combination, 0)
+		for _, binomialComb := range binomialCombs {
+			for _, lowerIndexComb := range lowerIndexCombs {
+				// check if values in lowerIndexComb not already taken
+				anySpotTaken := false
+				for _, v := range binomialComb {
+					if lowerIndexComb[v] != c.combinationUnsetIndex {
+						anySpotTaken = true
+						break
+					}
+				}
+				if !anySpotTaken {
+					// combine lower index combination with binomial combination
+					// eg: [7, 7, 7, 0, 0, 7] + [1, 2, 5] -> [7, 1, 1, 0, 0, 1]
+					combination := make(Combination, c.initialValue)
+					copy(combination, lowerIndexComb)
 					for _, v := range binomialComb {
-						if lowerIndexComb[v] != int(c.initialValue+1) {
-							anySpotTaken = true
-							break
-						}
+						combination[v] = index
 					}
-					if !anySpotTaken {
-						// combine lower inder combination with binomial combination
-						// eg: [7, 7, 7, 0, 0, 7] + [1, 2, 5] -> [7, 1, 1, 0, 0, 1]
-						combination := make(Combination, c.initialValue)
-						copy(combination, lowerIndexComb)
-						for _, v := range binomialComb {
-							combination[v] = index
-						}
-						combinations = append(combinations, combination)
-					}
+					combinations = append(combinations, combination)
 				}
 			}
 		}
 	}
+
 	return combinations
 }

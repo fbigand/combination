@@ -24,19 +24,23 @@ func getBinomialCombinations(k, n uint) [][]uint {
 	if combsInCache {
 		binomialCombinations = cachedCombs
 	} else {
-		binomialCombinations = make([][]uint, 0)
-		if n >= k && k != 0 && n != 0 {
-			path := make([]uint, 0)
-			dfs(k, n, 1, path, &binomialCombinations)
-		}
+		binomialCombinations = computeBinomialCombinations(k, n)
 		binomialCombsCache[binomialCoefficient] = binomialCombinations
 	}
 
 	return binomialCombinations
 }
 
-// Depth-First Search algorithm
-func dfs(k, n, begin uint, path []uint, res *[][]uint) {
+func computeBinomialCombinations(k, n uint) [][]uint {
+	binomialCombinations := make([][]uint, 0)
+	if n >= k && k != 0 && n != 0 {
+		path := make([]uint, 0)
+		depthFirstSearch(k, n, 1, path, &binomialCombinations)
+	}
+	return binomialCombinations
+}
+
+func depthFirstSearch(k, n, begin uint, path []uint, res *[][]uint) {
 	if uint(len(path)) == k {
 		var copiedPath []uint = make([]uint, len(path))
 		copy(copiedPath, path)
@@ -44,7 +48,7 @@ func dfs(k, n, begin uint, path []uint, res *[][]uint) {
 	} else {
 		for i := begin; i <= n; i++ {
 			path = append(path, i-1)
-			dfs(k, n, i+1, path, res)
+			depthFirstSearch(k, n, i+1, path, res)
 			path = path[:len(path)-1]
 		}
 	}
