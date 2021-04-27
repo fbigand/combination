@@ -14,7 +14,6 @@ import (
 type CombinationIterator struct {
 	counter           *counter
 	combinationsQueue []Combination
-	combinationIndex  uint
 	lastCombination   Combination
 }
 
@@ -22,19 +21,23 @@ type Combination []int
 
 // NewCombinationIterator creates and returns a new CombinationIterator.
 // See CombinationIterator documentation for more information.
-func NewCombinationIterator(lastCombination Combination) CombinationIterator {
-	initialValue := uint(len(lastCombination))
-	endStateValue := util.MaxInt(lastCombination...)
+func NewCombinationIterator(listsLength []int) CombinationIterator {
+	initialValue := uint(len(listsLength))
+	endStateValue := util.MaxInt(listsLength...)
 	endState := make([]uint, initialValue)
-	util.InitSliceUint(endState, uint(endStateValue))
+	endState[initialValue-1] = uint(endStateValue)
 
 	counter := newCounter(initialValue, endState)
 	firstCombinations := counter.getCombinations()
 
+	lastCombination := make(Combination, len(listsLength))
+	for i := range lastCombination {
+		lastCombination[i] = listsLength[i] - 1
+	}
+
 	combinationIterator := CombinationIterator{
 		counter:           counter,
 		combinationsQueue: firstCombinations,
-		combinationIndex:  0,
 		lastCombination:   lastCombination,
 	}
 	return combinationIterator
@@ -44,34 +47,44 @@ func NewCombinationIterator(lastCombination Combination) CombinationIterator {
 // reached the end.
 func (ci *CombinationIterator) Next() bool {
 	hasNext := true
-	if int(ci.combinationIndex) == len(ci.combinationsQueue) {
-		hasNext = ci.counter.next()
-		if hasNext {
-			ci.combinationsQueue = ci.counter.getCombinations()
-			ci.filterCombinations()
-			ci.combinationIndex = 0
-		}
+	if len(ci.combinationsQueue) == 1 {
+		hasNext = ci.requeueCombinations()
 	} else {
-		ci.combinationIndex++
+		ci.combinationsQueue = ci.combinationsQueue[1:]
+	}
+	return hasNext
+}
+
+func (ci *CombinationIterator) requeueCombinations() bool {
+	hasNext := ci.counter.next()
+	if hasNext {
+		ci.combinationsQueue = ci.counter.getCombinations()
+		ci.removeOutOfRangeCombinations()
+		if len(ci.combinationsQueue) == 0 {
+			hasNext = ci.requeueCombinations()
+		}
 	}
 	return hasNext
 }
 
 // GetCombination returns the current combination of the iterator.
 func (ci *CombinationIterator) GetCombination() Combination {
-	return ci.combinationsQueue[ci.combinationIndex]
+	return ci.combinationsQueue[0]
 }
 
-// filterCombinations filter the combinations to test. Basically, this
-// function removes all combinations containing out of range index
-func (ci *CombinationIterator) filterCombinations() {
-	for combIndex, combination := range ci.combinationsQueue {
+func (ci *CombinationIterator) removeOutOfRangeCombinations() {
+	for combIndex := len(ci.combinationsQueue) - 1; combIndex >= 0; combIndex-- {
+		// for combIndex, combination := range ci.combinationsQueue {
+		combination := ci.combinationsQueue[combIndex]
 		for listIndex := range combination {
 			if combination[listIndex] > ci.lastCombination[listIndex] {
-				// remove combination from combinations queue
-				ci.combinationsQueue = append(ci.combinationsQueue[:combIndex], ci.combinationsQueue[combIndex+1:]...)
+				ci.combinationsQueue = removeFromCombinationSlice(ci.combinationsQueue, combIndex)
 				break
 			}
 		}
 	}
+}
+
+func removeFromCombinationSlice(slice []Combination, index int) []Combination {
+	return append(slice[:index], slice[index+1:]...)
 }
