@@ -42,11 +42,11 @@ import (
 
 func main() {
     // /!\ Lists must not be empty
-    list1 := []string{"one", "two", "three", "four"}
-    list2 := []uint{10, 32, 89}
-    list3 := []int{5, 10, 89, 72, 11}
+    list1 := []string{"one", "two", "three"}
+    list2 := []uint{10, 32}
+    list3 := []int{5}
 
-    listsLength := make(int[], 3)
+    listsLength := make([]int, 3)
     listsLength[0] = len(list1)
     listsLength[1] = len(list2)
     listsLength[2] = len(list3)
@@ -57,14 +57,18 @@ func main() {
     hasNext := true
     for hasNext {
         comb = combIt.GetCombination()
-
-        fmt.Println(comb)
-        fmt.Println(list1[comb[0]])
-        fmt.Println(list2[comb[1]])
-        fmt.Println(list3[comb[2]])
-        fmt.Println("==============")
+        fmt.Printf("[%v %v %v]\n", list1[comb[0]], list2[comb[1]], list3[comb[2]])
 
         hasNext = combIt.Next()
     }
+
+    // Print output
+    //
+    // ["one" 10 5]
+    // ["two" 10 5]
+    // ["one" 32 5]
+    // ["two" 32 5]
+    // ["three" 10 5]
+    // ["three" 32 5]
 }
 ```
